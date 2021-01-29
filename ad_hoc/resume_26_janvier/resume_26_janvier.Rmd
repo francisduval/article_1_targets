@@ -1,0 +1,49 @@
+---
+title: "Résumé"
+author: "Francis Duval"
+date: "26/01/2021"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+Pour les interations, j'ai opté pour l'approche hiérarchique comme on en avait parlé. Aussi, on ne considère que les interactions de degré 2. Ça veut dire que les seules interactions qui peuvent faire partie du modèle sont celles dont les 2 composantes sont des effets principaux que le modèle garde. Par exemple, si le LASSO rejette l'effet principal marital_status (donc met son coefficient à zéro), il ne pourrait pas y avoir l'interaction marital_status_x_gender dans le modèle, même si le LASSO ne met pas le coefficient de cette interaction à zéro. En d'autres mots, on force les coefficients des interactions qui n'ont pas 2 « parents » sélectionnés à zéro.
+
+## Régression logistique LASSO avec seulement les effets principaux
+
+Ce modèle a pour but de faire une sélection des effets principaux. J'utilise la base d'**entrainement avec 12 mois de données télématiques**. J'ai tout d'abord calibré le modèle avec validation croisée et une grille de 50 valeurs du paramètre *penalty* (ou lambda). Ensuite, je prends la meilleure valeur du paramètre *penalty* et j'entraine le modèle sur toute la base d'entrainement. Comme on le voit sur la figure ci-dessous, le modèle sélectionne toutes les variables sauf une, c'est-à-dire **marital_status**. 
+
+```{r, echo = F, fig.align = "center", out.width = "100%"}
+knitr::include_graphics(here::here("figures", "lasso_coefs.png"))
+```
+
+## Régression logistique LASSO avec interactions
+
+Je considère toutes les interactions de degré 2, sauf celles ayant **marital_status** comme parent (le LASSO avec effets principaux seulement n'a exclut que la variable **marital_status**). J'exclut aussi la variable marital_status. On a donc un modèle à **276** prédicteurs:
+
+* 23 effets principaux (9 variables classiques et 14 variables télématiques)
+* 2 parmi 23 = 253 interactions de degré 2
+
+J'ai donc calibré un LASSO avec ces 276 prédicteurs, ce qui m'a donné une valeur optimale de *penalty*. J'entraine ensuite ce modèle sur l'ensemble d'entrainement, ce qui me donne les coeficients suivants:
+
+```{r, echo = F, fig.align = "center", out.width = "100%"}
+knitr::include_graphics(here::here("figures", "lasso_interactions_coefs.png"))
+```
+
+
+## Comparaison des performances
+
+Pour fins de comparaison, j'ai aussi entrainé deux GLMNET (avec et sans interactions) et un random forest (sans interaction, car ce genre de modèle est supposé créer lui-même ses interactions, et de toute façon, si on incluait les 253 interactions, ça serait beaucoup trop long à rouler). Voici les résultats de validation croisée sur l'ensemble d'entrainement:
+
+```{r, echo = F, fig.align = "center", out.width = "100%"}
+knitr::include_graphics(here::here("figures", "cv_roc_curves.png"))
+```
+
+En résumé, on dirait que les interactions ne semblent pas améliorer de manière significative l'AUC. Ce qui est contre-intuitif, c'est que lorsqu'on inclut des interactions, celles-ci deviennent plus importantes que les effets principaux aux yeux du LASSO. Le modèle random forest performe moins bien que les modèles linéaires. Voici les courbes ROC, mais cette fois-ci sur l'échantillon test:
+
+```{r, echo = F, fig.align = "center", out.width = "100%"}
+knitr::include_graphics(here::here("figures", "test_roc_curves.png"))
+```

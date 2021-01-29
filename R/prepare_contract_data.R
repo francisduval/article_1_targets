@@ -13,10 +13,10 @@ prepare_contract_data <- function(contract_file) {
       commute_distance       = as.integer(COMMUTEDISTANCE),
       conv_count_3_yrs_minor = as.integer(CONVCOUNTMINOR3YRS),
       gender                 = factor(DRIVER_GENDER),
-      marital_status         = factor(DRIVER_MARITALSTATUS),
-      pmt_plan               = factor(PAYMENTPLAN),
+      marital_status         = fct_drop(factor(DRIVER_MARITALSTATUS)),
+      pmt_plan               = fct_drop(factor(PAYMENTPLAN)),
       veh_age                = as.integer(VEHICLEAGE),
-      veh_use                = factor(VEHICLEUSE),
+      veh_use                = fct_drop(factor(VEHICLEUSE)),
       years_claim_free       = as.integer(DRIVER_YEARSCLAIMFREE),
       years_licensed         = as.integer(DRIVER_YEARSLICENSED),
       first_claim_date       = as.Date(parse_date_time2(dateofloss1, "%d%b%Y:%H:%M:%OS")),
@@ -62,6 +62,7 @@ prepare_contract_data <- function(contract_file) {
     ) %>% 
     arrange(vin, contract_start_date) %>% 
     filter(gender != "Unknown") %>% 
+    mutate(gender = fct_drop(gender)) %>% 
     filter_at(vars(starts_with("expo_")), all_vars(near(., expo_2, tol = 0.01))) %>%
     rename(expo = expo_2) %>% 
     select(-starts_with("expo_")) %>% 

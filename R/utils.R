@@ -56,3 +56,63 @@ plot_tuning_lasso <- function(tune_results, title = NULL, subtitle = NULL) {
 }
 
 # ===============================================================================================================================
+
+compute_tune_results_auc <- function(tune_results) {
+    tune_results %>% 
+    collect_predictions(parameters = tune_results %>% select_best(metric = "roc_auc")) %>% 
+    roc_auc(claim_ind, .pred_0) %>% 
+    pull(.estimate)
+}
+
+# ===============================================================================================================================
+
+compute_tune_results_roc <- function(tune_results, model_name = NULL) {
+  auc <- compute_tune_results_auc(tune_results)
+  
+  tune_results %>% 
+    collect_predictions(parameters = tune_results %>% select_best(metric = "roc_auc")) %>% 
+    roc_curve(claim_ind, .pred_0) %>% 
+    mutate(model = glue("{model_name} (AUC = {round(auc, 4)})"))
+}
+
+# ===============================================================================================================================
+
+compute_auc <- function(fit, new_data) {
+  predict(fit, new_data = new_data, type = "prob") %>% 
+    bind_cols(claim_ind = new_data$claim_ind) %>% 
+    roc_auc(claim_ind, .pred_0) %>% 
+    pull(.estimate)
+}
+
+# ===============================================================================================================================
+
+compute_roc <- function(fit, new_data, model_name = "NULL") {
+  auc <- compute_auc(fit, new_data)
+  
+  predict(fit, new_data = new_data, type = "prob") %>% 
+    bind_cols(claim_ind = new_data$claim_ind) %>% 
+    roc_curve(claim_ind, .pred_0) %>% 
+    mutate(model = glue("{model_name} (AUC = {round(auc, 4)})"))
+}
+
+# ===============================================================================================================================
+
+plot_glm_coefs <- function(fit, title = NULL, subtitle = NULL) {
+  dat <- 
+    fit %>% 
+    pull_workflow_fit() %>% 
+    tidy() %>% 
+    filter(term != "(Intercept)") %>% 
+    mutate(signif = factor(if_else(p.value < 0.05, "Yes", "No")))
+  
+  ggplot(dat, aes(x = estimate, y = term, xmin = estimate - std.error, xmax = estimate + std.error, color = signif)) +
+    geom_pointrange(alpha = 0.9, size = 0.5) +
+    geom_vline(xintercept = 0, alpha = 0.5) +
+    scale_color_manual("P-value < 0.05?", values = c("grey", "black")) +
+    ggtitle(title) +
+    labs(subtitle = subtitle) +
+    ylab(NULL) +
+    xlab("Estimate")
+}
+
+# ===============================================================================================================================
