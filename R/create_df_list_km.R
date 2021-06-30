@@ -3,7 +3,6 @@ create_df_list_km <- function(contracts_claims_trips_data) {
   compute_telematics_summaries <- function(contracts_claims_trips_data, nb_thousand_km) {
     contracts_claims_trips_data %>%
       group_by(vin) %>%
-      lazy_dt() %>% 
       mutate(distance_cum = cumsum(distance)) %>%
       filter(distance_cum <= 1000 * nb_thousand_km) %>% 
       mutate(nb_jours = as.numeric(last(date_start) - first(contract_start_date))) %>% 
@@ -57,7 +56,13 @@ create_df_list_km <- function(contracts_claims_trips_data) {
         claim_ind                = first(claim_ind)
       ) %>% 
       ungroup() %>% 
-      as_tibble()
+      filter(
+        is.finite(t_avg_daily_distance), 
+        is.finite(t_avg_daily_nb_trips), 
+        !is.nan(t_avg_daily_distance),
+        !is.nan(t_avg_daily_nb_trips),
+        !is.na(c_years_claim_free)
+      )
   }
   
   # Calculer les 12 bases de données avec variables télématiques

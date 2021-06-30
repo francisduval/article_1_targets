@@ -1,6 +1,6 @@
-split_train_test <- function(df_list_total) {
+split_train_test <- function(df_list_total, vins_to_keep) {
   # Ne garder que les VINs présents dans tous les mois 
-  vins_to_keep <- map(df_list_total, "vin") %>% reduce(intersect)
+  # vins_to_keep <- map(df_list_total, "vin") %>% reduce(intersect)
   df_list <- map(df_list_total, filter, vin %in% vins_to_keep)
   
   # Créer l'ensemble d'entrainement et de validation

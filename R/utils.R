@@ -13,7 +13,7 @@ prepend_element_to_list <- function(the_list, element) {
 
 # ===============================================================================================================================
 
-plot_glmnet_coefs <- function(fitted_wf, title = NULL, subtitle = NULL) {
+plot_glmnet_coefs <- function(fitted_wf, title = NULL, subtitle = NULL, caption = T) {
   df <- 
     fitted_wf %>% 
     pull_workflow_fit() %>% 
@@ -26,7 +26,8 @@ plot_glmnet_coefs <- function(fitted_wf, title = NULL, subtitle = NULL) {
   
   nb_zero_coef <- nrow(df) - nrow(df_non_zero)
 
-  df_non_zero %>% 
+  p <- 
+    df_non_zero %>% 
     mutate(Sign = if_else(estimate > 0, "+", "-")) %>% 
     mutate(abs_estimate = abs(estimate)) %>% 
     mutate(term = fct_reorder(term, abs_estimate)) %>% 
@@ -34,9 +35,12 @@ plot_glmnet_coefs <- function(fitted_wf, title = NULL, subtitle = NULL) {
     geom_col(alpha = 0.7) +
     xlab(NULL) +
     ylab("Absolute value of coefficient") +
-    labs(caption = glue("Note: {nb_zero_coef} other coefficients are zero")) +
-    scale_fill_manual(values = c("darkred", "darkblue")) +
+    scale_fill_manual(values = c("#a61d21", "#00743F")) +
     coord_flip()
+  
+  # if(caption) {
+  #   p + labs(caption = glue("Note: {nb_zero_coef} other coefficients are zero"))
+  # }
 }
 
 # ===============================================================================================================================
@@ -86,6 +90,25 @@ compute_auc <- function(fit, new_data) {
 
 # ===============================================================================================================================
 
+compute_auc_bootstrap <- function(fit, new_data, nboot) {
+  set.seed(1994)
+  boot <- bootstraps(new_data, times = nboot, strata = claim_ind)
+  boot_id_df <- 
+    map_dfc(seq_len(nboot), ~ boot$splits[[.]]$in_id)
+  
+  auc_vec <- vector(mode = "double", length = nboot)
+  
+  for(i in seq_len(nboot)) {
+    dat <- slice(new_data, boot_id_df[[i]])
+    auc_vec[i] <- compute_auc(fit, new_data = dat)
+    print(glue("{i} / {nboot}"))
+  }
+  
+  return(auc_vec)
+}
+
+# ===============================================================================================================================
+
 compute_roc <- function(fit, new_data, model_name = "NULL") {
   auc <- compute_auc(fit, new_data)
   
@@ -116,3 +139,56 @@ plot_glm_coefs <- function(fit, title = NULL, subtitle = NULL) {
 }
 
 # ===============================================================================================================================
+
+plot_rf_tuning <- function(tune_results, title = NULL, subtitle = NULL) {
+  dat <- 
+    tune_results %>%
+    collect_metrics() %>%
+    filter(.metric == "roc_auc") %>%
+    mutate(best_param = mean == max(mean))
+  
+  dat_best_param <-
+    dat %>%
+    filter(best_param) %>%
+    filter(mtry == max(mtry)) %>%
+    filter(min_n == max(min_n))
+  
+  best_mtry <- signif(dat_best_param$mtry, 2)
+  best_min_n <- signif(dat_best_param$min_n, 2)
+  best_auc <- signif(dat_best_param$mean, 4)
+  
+  lab <- glue("mtry = {best_mtry}\nmin_n = {best_min_n}\nAUC = {best_auc}")
+  
+  ggplot(dat, aes(mtry, mean, color = factor(min_n))) +
+    geom_line(alpha = 0.6, size = 1.1) +
+    geom_point() +
+    annotate(
+      "label", 
+      x = min(dat$mtry) + 0.75 * (max(dat$mtry) - min(dat$mtry)),
+      y = min(dat$mean) + 0.75 * (max(dat$mean) - min(dat$mean)),
+      label = lab, 
+      hjust = 0.5, 
+      color = "red", 
+      size = 2.1,
+      alpha = 0.9,
+      family = "Roboto"
+    ) +  
+    ggtitle(title) +
+    labs(y = "AUC", color = "min_n", subtitle = subtitle) +
+    coord_cartesian(clip = "off")
+}
+
+
+# Fonction pour obtenir les coefficients d'une régression logistique LASSO ======================================================
+get_glmnet_coefs <- function(wf, data, tune_results) {
+  fit_wf_best_params(wf, tune_results, data) %>% 
+  pull_workflow_fit() %>%
+  tidy()
+}
+
+# Faire un data frame à partir d'une liste de coefficients ======================================================================
+get_df_from_param_ls <- function(param_ls) {
+  map(param_ls, select, -penalty) %>% 
+    reduce(inner_join, by = "term") %>% 
+    set_names(c("variable", glue("...{1:500}"), "original"))
+}
